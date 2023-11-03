@@ -1,0 +1,177 @@
+#include<iostream>
+
+#define GLEW_STATIC
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+// Vertex data for the icosahedron  begin
+const GLfloat icosavertices[] = {
+	0.000f, 1.000f, 0.000f,
+	0.894f, 0.447f, 0.000f,
+	0.276f, 0.447f, 0.850f,
+	-0.724f, 0.447f, 0.525f,
+	-0.724f, 0.447f, -0.525f,
+	0.276f, 0.447f, -0.850f,
+	0.724f, -0.447f, 0.525f,
+	-0.276f, -0.447f, 0.850f,
+	-0.894f, -0.447f, 0.000f,
+	-0.276f, -0.447f, -0.850f,
+	0.724f, -0.447f, -0.525f,
+	0.000f, -1.000f, 0.000f
+};
+
+const GLuint icosaindices[] = {
+	0, 1, 2,//1
+	0, 2, 3,//2
+	0, 3, 4,//3
+	0, 4, 5,//4
+	0, 5, 1,//5
+	11, 6, 7,//6
+	11, 7, 8,//7
+	11, 8, 9,//8
+	11, 9, 10,//9
+	11, 10, 6,//10
+	1, 2, 6,//11
+	2, 3, 7,//12
+	3, 4, 8,//13
+	4, 5, 9,//14
+	5, 1, 10,//15
+	6, 7, 2,//16
+	7, 8, 3,//17
+	8, 9, 4,//18
+	9, 10, 5,//19
+	10, 6, 1//20
+};
+const GLfloat icosacolors[] = {
+	1.0f, 0.0f, 0.0f, // Face 1 (red)
+	0.0f, 1.0f, 0.0f, // Face 2 (green)
+	0.0f, 0.0f, 1.0f, // Face 3 (blue)
+	1.0f, 1.0f, 0.0f, // Face 4 (yellow)
+	1.0f, 0.0f, 1.0f, // Face 5 (magenta)
+	0.0f, 1.0f, 1.0f, // Face 6 (cyan)
+	1.0f, 0.5f, 0.0f, // Face 7 (orange)
+	0.5f, 1.0f, 0.0f, // Face 8 (lime)
+	0.0f, 0.5f, 1.0f, // Face 9 (indigo)
+	0.5f, 0.0f, 1.0f, // Face 10 (purple)
+	1.0f, 0.0f, 0.5f, // Face 11 (pink)
+	0.0f, 1.0f, 0.5f,  // Face 12 (teal)
+	1.0f, 0.0f, 1.0f, // Face 5 (magenta)
+	0.0f, 1.0f, 1.0f, // Face 6 (cyan)
+	1.0f, 0.5f, 0.0f, // Face 7 (orange)
+	0.5f, 1.0f, 0.0f, // Face 8 (lime)
+	0.0f, 0.5f, 1.0f, // Face 9 (indigo)
+	0.5f, 0.0f, 1.0f, // Face 10 (purple)
+	1.0f, 0.0f, 0.5f, // Face 11 (pink)
+	0.0f, 1.0f, 0.5f  // Face 12 (teal)
+};
+const char* icosavertexShaderSource = R"(
+    #version 330 core
+    layout(location = 0) in vec3 aPos;
+    layout(location = 1) in vec3 aColor;
+    out vec3 fragColor;
+    uniform mat4 model;
+    void main() {
+        gl_Position = model * vec4(aPos, 1.0);
+        fragColor = aColor;
+    }
+)";
+
+const char* icosafragmentShaderSource = R"(
+    #version 330 core
+    in vec3 fragColor;
+    out vec4 FragColor;
+    void main() {
+        FragColor = vec4(fragColor, 1.0);
+    }
+)"; //end icosa
+int main() {
+	if (!glfwInit()) {
+		std::cerr << "Failed to initialize GLFW" << std::endl;
+		return -1;
+	}
+
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+
+	GLFWwindow* window = glfwCreateWindow(800, 600, "Rotating Icosahedron", nullptr, nullptr);
+	if (!window) {
+		std::cerr << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return -1;
+	}
+
+	glfwMakeContextCurrent(window);
+	glewExperimental = GL_TRUE;
+
+	if (glewInit() != GLEW_OK) {
+		std::cerr << "Failed to initialize GLEW" << std::endl;
+		return -1;
+	}
+
+	//begin cosa
+	GLuint icosaVBO, icosaVAO, icosaEBO;
+	glGenVertexArrays(1, &icosaVAO);
+	glGenBuffers(1, &icosaVBO);
+	glGenBuffers(1, &icosaEBO);
+
+	glBindVertexArray(icosaVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, icosaVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(icosavertices) + sizeof(icosacolors), nullptr, GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(icosavertices), icosavertices);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(icosavertices), sizeof(icosacolors), icosacolors);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, icosaEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(icosaindices), icosaindices, GL_STATIC_DRAW);
+
+	GLuint icosavertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(icosavertexShader, 1, &icosavertexShaderSource, nullptr);
+	glCompileShader(icosavertexShader);
+
+	GLuint icosafragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(icosafragmentShader, 1, &icosafragmentShaderSource, nullptr);
+	glCompileShader(icosafragmentShader);
+
+	GLuint icosashaderProgram = glCreateProgram();
+	glAttachShader(icosashaderProgram, icosavertexShader);
+	glAttachShader(icosashaderProgram, icosafragmentShader);
+	glLinkProgram(icosashaderProgram);
+	glUseProgram(icosashaderProgram);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)(sizeof(icosavertices)));
+	glEnableVertexAttribArray(1);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glEnable(GL_DEPTH_TEST);
+	//end cosa
+	while (!glfwWindowShouldClose(window)) {
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		float time = glfwGetTime();
+		//begin icosa
+		glm::mat4 icosamodel = glm::rotate(glm::mat4(1.0f), (float)time, glm::vec3(0.0f, 2.0f, 2.0f)); //rotate
+		icosamodel = glm::scale(icosamodel, glm::vec3(0.25f, 0.25f, 0.25f));//size
+		glm::vec3 translation(-2.5f, -1.0f, 0.0f); //move
+		icosamodel = glm::translate(icosamodel, translation); //apply translation
+		GLuint modelLoc = glGetUniformLocation(icosashaderProgram, "model");
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(icosamodel));
+
+		glUseProgram(icosashaderProgram);
+		glBindVertexArray(icosaVAO);
+		glDrawElements(GL_TRIANGLES, 60, GL_UNSIGNED_INT, 0); //draw isohedron
+		//end icosa
+
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
+	//icosa cleanup
+	glDeleteVertexArrays(1, &icosaVAO);
+	glDeleteBuffers(1, &icosaVBO);
+	glDeleteBuffers(1, &icosaEBO);
+	glfwTerminate();
+	return 0;
+}
