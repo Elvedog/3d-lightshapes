@@ -1,0 +1,1020 @@
+#define GLEW_STATIC
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+//DOCA
+const GLfloat docavertices[] = {
+	0, 0.618, 1.618,
+	0, -0.618, 1.618,
+	0, -0.618, -1.618,
+	0, 0.618, -1.618,
+	1.618, 0, 0.618,
+	-1.618, 0, 0.618,
+	-1.618, 0, -0.618,
+	1.618, 0, -0.618,
+	0.618, 1.618, 0,
+	-0.618, 1.618, 0,
+	-0.618, -1.618, 0,
+	0.618, -1.618, 0,
+	1, 1, 1,
+	-1, 1, 1,
+	-1, -1, 1,
+	1, -1, 1,
+	1, -1, -1,
+	1, 1, -1,
+	-1, 1, -1,
+	-1, -1, -1,
+};
+
+const GLuint docaindices[] = {
+	0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 6, 0, 6, 11,
+	1, 5, 9, 5, 11, 4, 11, 6, 2, 6, 10, 3, 10, 7, 8, 7, 1, 9, 2, 8,
+	4, 9, 8, 2, 4, 3, 2, 3, 8, 3, 4,
+};
+const GLfloat docacolors[] = {
+	1.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f,
+	0.0f, 0.0f, 1.0f,
+	1.0f, 1.0f, 0.0f,
+	1.0f, 0.0f, 1.0f,
+	0.0f, 1.0f, 1.0f,
+	1.0f, 0.5f, 0.0f,
+	0.5f, 1.0f, 0.0f,
+	0.0f, 0.5f, 1.0f,
+	0.5f, 0.0f, 1.0f,
+	1.0f, 0.0f, 0.5f,
+	0.0f, 1.0f, 0.5f
+};
+
+const char* docavertexShaderSource = R"(
+    #version 330 core
+    layout(location = 0) in vec3 aPos;
+    layout(location = 1) in vec3 aColor;
+    out vec3 FragPos;
+    out vec3 Normal;
+    out vec3 Color;
+    uniform mat4 model;
+    uniform mat4 view;
+    uniform mat4 projection;
+    void main() {
+        gl_Position = projection * view * model * vec4(aPos, 1.0);
+        FragPos = vec3(model * vec4(aPos, 1.0));
+        Normal = mat3(transpose(inverse(model))) * aPos;
+        Color = aColor;
+    }
+)";
+
+const char* docafragmentShaderSource = R"(
+  #version 330 core
+    in vec3 FragPos;
+    in vec3 Normal;
+    in vec3 Color;
+    out vec4 FragColor;
+    uniform vec3 lightPos;
+    uniform vec3 lightColor;
+    uniform vec3 objectColor;
+    uniform int useWireframe; // Use an integer to toggle wireframe
+    void main() {
+        if (useWireframe == 1) {
+            FragColor = vec4(1.0, 1.0, 0.0, 1.0); // Wireframe color (white)
+        } else {
+            // Ambient lighting
+            float ambientStrength = 0.1;
+            vec3 ambient = ambientStrength * lightColor * Color;
+
+            // Diffuse lighting
+            vec3 lightDir = normalize(lightPos - FragPos);
+            vec3 normal = normalize(Normal);
+            float diff = max(dot(normal, lightDir), 0.0);
+            vec3 diffuse = diff * lightColor * Color;
+
+            // Specular lighting (Phong reflection model)
+            float specularStrength = 0.5;
+            vec3 viewDir = normalize(-FragPos); // Viewer is at the origin
+            vec3 reflectDir = reflect(-lightDir, normal);
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+            vec3 specular = specularStrength * spec * lightColor;
+
+            vec3 result = (ambient + diffuse + specular);
+            FragColor = vec4(result, 1.0);
+        }
+    }
+)";
+//DOCA
+
+
+
+
+
+//octa
+const GLfloat octavertices[] = {
+	0.0f,  1.0f,  0.0f,
+	1.0f,  0.0f,  0.0f,
+	0.0f,  0.0f,  1.0f,
+   -1.0f,  0.0f,  0.0f,
+	0.0f,  0.0f, -1.0f,
+	0.0f, -1.0f,  0.0f,
+};
+
+const GLuint octaindices[] = {
+	0, 1, 2,
+	0, 2, 3,
+	0, 3, 4,
+	0, 4, 1,
+	1, 5, 2,
+	2, 5, 3,
+	3, 5, 4,
+	4, 5, 1,
+};
+
+const GLfloat octacolors[] = {
+	1.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f,
+	0.0f, 0.0f, 1.0f,
+	1.0f, 1.0f, 0.0f,
+	1.0f, 0.0f, 1.0f,
+	0.0f, 1.0f, 1.0f,
+	1.0f, 0.5f, 0.0f,
+	0.5f, 1.0f, 0.0f,
+	0.0f, 0.5f, 1.0f,
+	0.5f, 0.0f, 1.0f,
+	1.0f, 0.0f, 0.5f,
+	0.0f, 1.0f, 0.5f
+};
+
+const char* octavertexShaderSource = R"(
+    #version 330 core
+    layout(location = 0) in vec3 aPos;
+    layout(location = 1) in vec3 aColor;
+    out vec3 FragPos;
+    out vec3 Normal;
+    out vec3 Color;
+    uniform mat4 model;
+    uniform mat4 view;
+    uniform mat4 projection;
+    void main() {
+        gl_Position = projection * view * model * vec4(aPos, 1.0);
+        FragPos = vec3(model * vec4(aPos, 1.0));
+        Normal = mat3(transpose(inverse(model))) * aPos;
+        Color = aColor;
+    }
+)";
+
+const char* octafragmentShaderSource = R"(
+  #version 330 core
+    in vec3 FragPos;
+    in vec3 Normal;
+    in vec3 Color;
+    out vec4 FragColor;
+    uniform vec3 lightPos;
+    uniform vec3 lightColor;
+    uniform vec3 objectColor;
+    uniform int useWireframe; // Use an integer to toggle wireframe
+    void main() {
+        if (useWireframe == 1) {
+            FragColor = vec4(1.0, 1.0, 0.0, 1.0); // Wireframe color (white)
+        } else {
+            // Ambient lighting
+            float ambientStrength = 0.1;
+            vec3 ambient = ambientStrength * lightColor * Color;
+
+            // Diffuse lighting
+            vec3 lightDir = normalize(lightPos - FragPos);
+            vec3 normal = normalize(Normal);
+            float diff = max(dot(normal, lightDir), 0.0);
+            vec3 diffuse = diff * lightColor * Color;
+
+            // Specular lighting (Phong reflection model)
+            float specularStrength = 0.5;
+            vec3 viewDir = normalize(-FragPos); // Viewer is at the origin
+            vec3 reflectDir = reflect(-lightDir, normal);
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+            vec3 specular = specularStrength * spec * lightColor;
+
+            vec3 result = (ambient + diffuse + specular);
+            FragColor = vec4(result, 1.0);
+        }
+    }
+)";
+//octa
+
+
+
+
+
+
+
+//tetra
+const GLfloat tetravertices[] = {
+	0.0, 0.0, 1.0,   
+	1.0, 0.0, -1.0,  
+	-1.0, 0.0, -1.0, 
+	0.0, 1.0, 0.0    
+};
+
+const GLuint tetraindices[] = {
+	 0, 1, 2,  
+	0, 1, 3,  
+	1, 2, 3, 
+     0, 2, 3  
+};
+
+const GLfloat tetracolors[] = {
+	1.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f,
+	0.0f, 0.0f, 1.0f,
+	1.0f, 1.0f, 0.0f,
+	1.0f, 0.0f, 1.0f,
+	0.0f, 1.0f, 1.0f,
+	1.0f, 0.5f, 0.0f,
+	0.5f, 1.0f, 0.0f,
+	0.0f, 0.5f, 1.0f,
+	0.5f, 0.0f, 1.0f,
+	1.0f, 0.0f, 0.5f,
+	0.0f, 1.0f, 0.5f
+};
+
+const char* tetravertexShaderSource = R"(
+    #version 330 core
+    layout(location = 0) in vec3 aPos;
+    layout(location = 1) in vec3 aColor;
+    out vec3 FragPos;
+    out vec3 Normal;
+    out vec3 Color;
+    uniform mat4 model;
+    uniform mat4 view;
+    uniform mat4 projection;
+    void main() {
+        gl_Position = projection * view * model * vec4(aPos, 1.0);
+        FragPos = vec3(model * vec4(aPos, 1.0));
+        Normal = mat3(transpose(inverse(model))) * aPos;
+        Color = aColor;
+    }
+)";
+
+const char* tetrafragmentShaderSource = R"(
+  #version 330 core
+    in vec3 FragPos;
+    in vec3 Normal;
+    in vec3 Color;
+    out vec4 FragColor;
+    uniform vec3 lightPos;
+    uniform vec3 lightColor;
+    uniform vec3 objectColor;
+    uniform int useWireframe; // Use an integer to toggle wireframe
+    void main() {
+        if (useWireframe == 1) {
+            FragColor = vec4(1.0, 1.0, 0.0, 1.0); // Wireframe color (white)
+        } else {
+            // Ambient lighting
+            float ambientStrength = 0.1;
+            vec3 ambient = ambientStrength * lightColor * Color;
+
+            // Diffuse lighting
+            vec3 lightDir = normalize(lightPos - FragPos);
+            vec3 normal = normalize(Normal);
+            float diff = max(dot(normal, lightDir), 0.0);
+            vec3 diffuse = diff * lightColor * Color;
+
+            // Specular lighting (Phong reflection model)
+            float specularStrength = 0.5;
+            vec3 viewDir = normalize(-FragPos); // Viewer is at the origin
+            vec3 reflectDir = reflect(-lightDir, normal);
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+            vec3 specular = specularStrength * spec * lightColor;
+
+            vec3 result = (ambient + diffuse + specular);
+            FragColor = vec4(result, 1.0);
+        }
+    }
+)";
+//tetra
+
+
+
+
+
+
+//cube
+const GLfloat cubevertices[] = {
+	// Position
+	-0.5f, -0.5f, -0.5f,
+	 0.5f, -0.5f, -0.5f,
+	 0.5f,  0.5f, -0.5f,
+	-0.5f,  0.5f, -0.5f,
+	-0.5f, -0.5f,  0.5f,
+	 0.5f, -0.5f,  0.5f,
+	 0.5f,  0.5f,  0.5f,
+	-0.5f,  0.5f,  0.5f
+};
+
+const GLuint cubeindices[] = {
+	 0, 1, 2,
+	0, 2, 3,
+	4, 5, 6,
+	4, 6, 7,
+	0, 1, 5,
+	0, 5, 4,
+	2, 3, 7,
+	2, 7, 6,
+	1, 2, 6,
+	1, 6, 5,
+	0, 3, 7,
+	0, 7, 4
+};
+
+const GLfloat cubecolors[] = {
+	1.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f,
+	0.0f, 0.0f, 1.0f,
+	1.0f, 1.0f, 0.0f,
+	1.0f, 0.0f, 1.0f,
+	0.0f, 1.0f, 1.0f,
+	1.0f, 0.5f, 0.0f,
+	0.5f, 1.0f, 0.0f,
+	0.0f, 0.5f, 1.0f,
+	0.5f, 0.0f, 1.0f,
+	1.0f, 0.0f, 0.5f,
+	0.0f, 1.0f, 0.5f
+};
+
+const char* cubevertexShaderSource = R"(
+    #version 330 core
+    layout(location = 0) in vec3 aPos;
+    layout(location = 1) in vec3 aColor;
+    out vec3 FragPos;
+    out vec3 Normal;
+    out vec3 Color;
+    uniform mat4 model;
+    uniform mat4 view;
+    uniform mat4 projection;
+    void main() {
+        gl_Position = projection * view * model * vec4(aPos, 1.0);
+        FragPos = vec3(model * vec4(aPos, 1.0));
+        Normal = mat3(transpose(inverse(model))) * aPos;
+        Color = aColor;
+    }
+)";
+
+const char* cubefragmentShaderSource = R"(
+  #version 330 core
+    in vec3 FragPos;
+    in vec3 Normal;
+    in vec3 Color;
+    out vec4 FragColor;
+    uniform vec3 lightPos;
+    uniform vec3 lightColor;
+    uniform vec3 objectColor;
+    uniform int useWireframe; // Use an integer to toggle wireframe
+    void main() {
+        if (useWireframe == 1) {
+            FragColor = vec4(1.0, 1.0, 0.0, 1.0); // Wireframe color (white)
+        } else {
+            // Ambient lighting
+            float ambientStrength = 0.1;
+            vec3 ambient = ambientStrength * lightColor * Color;
+
+            // Diffuse lighting
+            vec3 lightDir = normalize(lightPos - FragPos);
+            vec3 normal = normalize(Normal);
+            float diff = max(dot(normal, lightDir), 0.0);
+            vec3 diffuse = diff * lightColor * Color;
+
+            // Specular lighting (Phong reflection model)
+            float specularStrength = 0.5;
+            vec3 viewDir = normalize(-FragPos); // Viewer is at the origin
+            vec3 reflectDir = reflect(-lightDir, normal);
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+            vec3 specular = specularStrength * spec * lightColor;
+
+            vec3 result = (ambient + diffuse + specular);
+            FragColor = vec4(result, 1.0);
+        }
+    }
+)";
+//cube
+
+
+
+
+const GLfloat icosavertices[] = {
+	0.000f, 1.000f, 0.000f,
+	0.894f, 0.447f, 0.000f,
+	0.276f, 0.447f, 0.850f,
+	-0.724f, 0.447f, 0.525f,
+	-0.724f, 0.447f, -0.525f,
+	0.276f, 0.447f, -0.850f,
+	0.724f, -0.447f, 0.525f,
+	-0.276f, -0.447f, 0.850f,
+	-0.894f, -0.447f, 0.000f,
+	-0.276f, -0.447f, -0.850f,
+	0.724f, -0.447f, -0.525f,
+	0.000f, -1.000f, 0.000f
+};
+
+const GLuint icosaindices[] = {
+	0, 1, 2,
+	0, 2, 3,
+	0, 3, 4,
+	0, 4, 5,
+	0, 5, 1,
+	11, 6, 7,
+	11, 7, 8,
+	11, 8, 9,
+	11, 9, 10,
+	11, 10, 6,
+	1, 2, 6,
+	2, 3, 7,
+	3, 4, 8,
+	4, 5, 9,
+	5, 1, 10,
+	6, 7, 2,
+	7, 8, 3,
+	8, 9, 4,
+	9, 10, 5,
+	10, 6, 1
+};
+
+const GLfloat icosacolors[] = {
+	1.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f,
+	0.0f, 0.0f, 1.0f,
+	1.0f, 1.0f, 0.0f,
+	1.0f, 0.0f, 1.0f,
+	0.0f, 1.0f, 1.0f,
+	1.0f, 0.5f, 0.0f,
+	0.5f, 1.0f, 0.0f,
+	0.0f, 0.5f, 1.0f,
+	0.5f, 0.0f, 1.0f,
+	1.0f, 0.0f, 0.5f,
+	0.0f, 1.0f, 0.5f
+};
+
+const char* icosavertexShaderSource = R"(
+    #version 330 core
+    layout(location = 0) in vec3 aPos;
+    layout(location = 1) in vec3 aColor;
+    out vec3 FragPos;
+    out vec3 Normal;
+    out vec3 Color;
+    uniform mat4 model;
+    uniform mat4 view;
+    uniform mat4 projection;
+    void main() {
+        gl_Position = projection * view * model * vec4(aPos, 1.0);
+        FragPos = vec3(model * vec4(aPos, 1.0));
+        Normal = mat3(transpose(inverse(model))) * aPos;
+        Color = aColor;
+    }
+)";
+
+const char* icosafragmentShaderSource = R"(
+   #version 330 core
+    in vec3 FragPos;
+    in vec3 Normal;
+    in vec3 Color;
+    out vec4 FragColor;
+    uniform vec3 lightPos;
+    uniform vec3 lightColor;
+    uniform vec3 objectColor;
+    uniform int useWireframe; // Use an integer to toggle wireframe
+    void main() {
+        if (useWireframe == 1) {
+            FragColor = vec4(1.0, 0.0, 0.0, 1.0); // Wireframe color (white)
+        } else {
+            // Ambient lighting
+            float ambientStrength = 0.1;
+            vec3 ambient = ambientStrength * lightColor * Color;
+
+            // Diffuse lighting
+            vec3 lightDir = normalize(lightPos - FragPos);
+            vec3 normal = normalize(Normal);
+            float diff = max(dot(normal, lightDir), 0.0);
+            vec3 diffuse = diff * lightColor * Color;
+
+            // Specular lighting (Phong reflection model)
+            float specularStrength = 0.5;
+            vec3 viewDir = normalize(-FragPos); // Viewer is at the origin
+            vec3 reflectDir = reflect(-lightDir, normal);
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+            vec3 specular = specularStrength * spec * lightColor;
+
+            vec3 result = (ambient + diffuse + specular);
+            FragColor = vec4(result, 1.0);
+        }
+    }
+)";
+const char* sphereVertexShaderSource = R"(
+    #version 330 core
+    layout(location = 0) in vec3 aPos;
+    layout(location = 1) in vec3 aColor;
+    out vec3 FragPos;
+    out vec3 Normal;
+    out vec3 Color;
+    uniform mat4 model;
+    uniform mat4 view;
+    uniform mat4 projection;
+    void main() {
+        gl_Position = projection * view * model * vec4(aPos, 1.0);
+        FragPos = vec3(model * vec4(aPos, 1.0));
+        Normal = mat3(transpose(inverse(model))) * aPos;
+        Color = aColor;
+    }
+)";
+
+const char* sphereFragmentShaderSource = R"(
+    #version 330 core
+    in vec3 FragPos;
+    in vec3 Normal;
+    in vec3 Color;
+    out vec4 FragColor;
+    uniform vec3 lightPos = vec3(0.0, 1.0, 0.0);
+    uniform vec3 lightColor;
+    uniform vec3 objectColor;
+    uniform int useWireframe; // Use an integer to toggle wireframe
+
+    void main() {
+        if (useWireframe == 1) {
+            FragColor = vec4(0.0, 1.0, 0.0, 1.0); // Wireframe color (white)
+        } else {
+            // Ambient lighting
+            float ambientStrength = 0.1;
+            vec3 ambient = ambientStrength * lightColor * Color;
+
+            // Diffuse lighting
+            vec3 lightDir = normalize(lightPos - FragPos);
+            vec3 normal = normalize(Normal);
+            float diff = max(dot(normal, lightDir), 0.0);
+            vec3 diffuse = diff * lightColor * Color;
+
+            // Specular lighting (Phong reflection model)
+            float specularStrength = 0.5;
+            vec3 viewDir = normalize(-FragPos); // Viewer is at the origin
+            vec3 reflectDir = reflect(-lightDir, normal);
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+            vec3 specular = specularStrength * spec * lightColor;
+
+            vec3 result = (ambient + diffuse + specular);
+            FragColor = vec4(result, 1.0);
+        }
+    }
+)";
+
+// Sphere vertices, indices, and colors
+const int sphereSubdivisions = 40;
+const int sphereVerticesCount = (sphereSubdivisions + 1) * (sphereSubdivisions + 1);
+const int sphereIndicesCount = sphereSubdivisions * sphereSubdivisions * 6;
+
+//  sphere vertices and indices
+void generateSphereVertices(GLfloat* vertices, GLuint* indices, GLfloat* colors, int subdivisions) {
+	for (int lat = 0; lat <= subdivisions; lat++) {
+		for (int lon = 0; lon <= subdivisions; lon++) {
+			int index = (lat * (subdivisions + 1) + lon) * 3;
+			float theta = static_cast<float>(lat) * 3.14 / subdivisions;
+			float phi = static_cast<float>(lon) * 2.0f * 3.14 / subdivisions;
+			float x = std::sin(theta) * std::cos(phi);
+			float y = std::cos(theta);
+			float z = std::sin(theta) * std::sin(phi);
+
+			vertices[index] = x;
+			vertices[index + 1] = y;
+			vertices[index + 2] = z;
+
+			
+			colors[index] = 0.0f; 
+			colors[index + 1] = 0.0f; 
+			colors[index + 2] = 7.0f; // Blue
+		}
+	}
+
+	int index = 0;
+	for (int lat = 0; lat < subdivisions; lat++) {
+		for (int lon = 0; lon < subdivisions; lon++) {
+			int current = lat * (subdivisions + 1) + lon;
+			int next = current + subdivisions + 1;
+
+			// First triangle
+			indices[index] = current;
+			indices[index + 1] = current + 1;
+			indices[index + 2] = next;
+			index += 3;
+
+			// Second triangle
+			indices[index] = next;
+			indices[index + 1] = current + 1;
+			indices[index + 2] = next + 1;
+			index += 3;
+		}
+	}
+}
+
+bool wireframeMode = false;
+
+void toggleWireframeMode(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
+		wireframeMode = !wireframeMode;
+		glPolygonMode(GL_FRONT_AND_BACK, wireframeMode ? GL_LINE : GL_FILL);
+	}
+}
+
+int main() {
+	if (!glfwInit()) {
+		std::cerr << "Failed to initialize GLFW" << std::endl;
+		return -1;
+	}
+
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+
+	
+	const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+
+	
+	int screenWidth = mode->width;
+	int screenHeight = mode->height;
+
+	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "Rotating Icosahedron and Sphere", nullptr, nullptr);
+	if (!window) {
+		std::cerr << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return -1;
+	}
+	glfwSetKeyCallback(window, toggleWireframeMode);
+	glfwMakeContextCurrent(window);
+	glewExperimental = GL_TRUE;
+
+	if (glewInit() != GLEW_OK) {
+		std::cerr << "Failed to initialize GLEW" << std::endl;
+		return -1;
+	}
+	
+	//doca
+	GLuint docaVBO, docaVAO, docaEBO;
+	glGenVertexArrays(1, &docaVAO);
+	glGenBuffers(1, &docaVBO);
+	glGenBuffers(1, &docaEBO);
+	glBindVertexArray(docaVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, docaVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(docavertices) + sizeof(docacolors), nullptr, GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(docavertices), docavertices);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(docavertices), sizeof(docacolors), docacolors);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, docaEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(docaindices), docaindices, GL_STATIC_DRAW);
+	GLuint docavertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(docavertexShader, 1, &docavertexShaderSource, nullptr);
+	glCompileShader(docavertexShader);
+	GLuint docafragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(docafragmentShader, 1, &docafragmentShaderSource, nullptr);
+	glCompileShader(docafragmentShader);
+	GLuint docashaderProgram = glCreateProgram();
+	glAttachShader(docashaderProgram, docavertexShader);
+	glAttachShader(docashaderProgram, docafragmentShader);
+	glLinkProgram(docashaderProgram);
+	glUseProgram(docashaderProgram);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)(sizeof(docavertices)));
+	glEnableVertexAttribArray(1);
+	//doca
+
+
+
+	//octa
+	GLuint octaVBO, octaVAO, octaEBO;
+	glGenVertexArrays(1, &octaVAO);
+	glGenBuffers(1, &octaVBO);
+	glGenBuffers(1, &octaEBO);
+	glBindVertexArray(octaVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, octaVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(octavertices) + sizeof(octacolors), nullptr, GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(octavertices), octavertices);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(octavertices), sizeof(octacolors), octacolors);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, octaEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(octaindices), octaindices, GL_STATIC_DRAW);
+	GLuint octavertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(octavertexShader, 1, &octavertexShaderSource, nullptr);
+	glCompileShader(octavertexShader);
+	GLuint octafragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(octafragmentShader, 1, &octafragmentShaderSource, nullptr);
+	glCompileShader(octafragmentShader);
+	GLuint octashaderProgram = glCreateProgram();
+	glAttachShader(octashaderProgram, octavertexShader);
+	glAttachShader(octashaderProgram, octafragmentShader);
+	glLinkProgram(octashaderProgram);
+	glUseProgram(octashaderProgram);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)(sizeof(octavertices)));
+	glEnableVertexAttribArray(1);
+	//octa
+
+
+
+	//tetra
+	GLuint tetraVBO, tetraVAO, tetraEBO;
+	glGenVertexArrays(1, &tetraVAO);
+	glGenBuffers(1, &tetraVBO);
+	glGenBuffers(1, &tetraEBO);
+	glBindVertexArray(tetraVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, tetraVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(tetravertices) + sizeof(tetracolors), nullptr, GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(tetravertices), tetravertices);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(tetravertices), sizeof(tetracolors), tetracolors);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tetraEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(tetraindices), tetraindices, GL_STATIC_DRAW);
+	GLuint tetravertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(tetravertexShader, 1, &tetravertexShaderSource, nullptr);
+	glCompileShader(tetravertexShader);
+	GLuint tetrafragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(tetrafragmentShader, 1, &tetrafragmentShaderSource, nullptr);
+	glCompileShader(tetrafragmentShader);
+	GLuint tetrashaderProgram = glCreateProgram();
+	glAttachShader(tetrashaderProgram, tetravertexShader);
+	glAttachShader(tetrashaderProgram, tetrafragmentShader);
+	glLinkProgram(tetrashaderProgram);
+	glUseProgram(tetrashaderProgram);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)(sizeof(tetravertices)));
+	glEnableVertexAttribArray(1);
+	//tetra
+	
+	
+	
+	
+	
+	
+	
+	//icosa
+	GLuint icosaVBO, icosaVAO, icosaEBO;
+	glGenVertexArrays(1, &icosaVAO);
+	glGenBuffers(1, &icosaVBO);
+	glGenBuffers(1, &icosaEBO);
+	glBindVertexArray(icosaVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, icosaVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(icosavertices) + sizeof(icosacolors), nullptr, GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(icosavertices), icosavertices);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(icosavertices), sizeof(icosacolors), icosacolors);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, icosaEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(icosaindices), icosaindices, GL_STATIC_DRAW);
+	GLuint icosavertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(icosavertexShader, 1, &icosavertexShaderSource, nullptr);
+	glCompileShader(icosavertexShader);
+	GLuint icosafragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(icosafragmentShader, 1, &icosafragmentShaderSource, nullptr);
+	glCompileShader(icosafragmentShader);
+	GLuint icosashaderProgram = glCreateProgram();
+	glAttachShader(icosashaderProgram, icosavertexShader);
+	glAttachShader(icosashaderProgram, icosafragmentShader);
+	glLinkProgram(icosashaderProgram);
+	glUseProgram(icosashaderProgram);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)(sizeof(icosavertices)));
+	glEnableVertexAttribArray(1);
+	//icosa
+
+	//cube
+	GLuint cubeVBO, cubeVAO, cubeEBO;
+	glGenVertexArrays(1, &cubeVAO);
+	glGenBuffers(1, &cubeVBO);
+	glGenBuffers(1, &cubeEBO);
+	glBindVertexArray(cubeVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(cubevertices) + sizeof(cubecolors), nullptr, GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(cubevertices), cubevertices);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(cubevertices), sizeof(cubecolors), cubecolors);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cubeindices), cubeindices, GL_STATIC_DRAW);
+	GLuint cubevertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(cubevertexShader, 1, &cubevertexShaderSource, nullptr);
+	glCompileShader(cubevertexShader);
+	GLuint cubefragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(cubefragmentShader, 1, &icosafragmentShaderSource, nullptr);
+	glCompileShader(cubefragmentShader);
+	GLuint cubeshaderProgram = glCreateProgram();
+	glAttachShader(cubeshaderProgram, cubevertexShader);
+	glAttachShader(cubeshaderProgram, cubefragmentShader);
+	glLinkProgram(cubeshaderProgram);
+	glUseProgram(cubeshaderProgram);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)(sizeof(cubevertices)));
+	glEnableVertexAttribArray(1);
+	//cube
+
+	//  sphere 
+	GLfloat sphereVertices[sphereVerticesCount * 3];
+	GLuint sphereIndices[sphereIndicesCount];
+	GLfloat sphereColors[sphereVerticesCount * 3];
+	generateSphereVertices(sphereVertices, sphereIndices, sphereColors, sphereSubdivisions);
+	GLuint sphereVBO, sphereVAO, sphereEBO;
+	glGenVertexArrays(1, &sphereVAO);
+	glGenBuffers(1, &sphereVBO);
+	glGenBuffers(1, &sphereEBO);
+	glBindVertexArray(sphereVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, sphereVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(sphereVertices) + sizeof(sphereColors), nullptr, GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(sphereVertices), sphereVertices);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(sphereVertices), sizeof(sphereColors), sphereColors);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphereEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(sphereIndices), sphereIndices, GL_STATIC_DRAW);
+	GLuint sphereVertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(sphereVertexShader, 1, &sphereVertexShaderSource, nullptr);
+	glCompileShader(sphereVertexShader);
+	GLuint sphereFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(sphereFragmentShader, 1, &sphereFragmentShaderSource, nullptr);
+	glCompileShader(sphereFragmentShader);
+	GLuint sphereShaderProgram = glCreateProgram();
+	glAttachShader(sphereShaderProgram, sphereVertexShader);
+	glAttachShader(sphereShaderProgram, sphereFragmentShader);
+	glLinkProgram(sphereShaderProgram);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)(sizeof(sphereVertices)));
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glEnable(GL_DEPTH_TEST);
+	//sphere
+
+
+
+
+
+
+	// camera
+	glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, 3.0f);
+	glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+	glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+	float cameraSpeed = 0.05f;
+	glm::mat4 view = glm::lookAt(cameraPosition, cameraPosition + cameraFront, cameraUp);
+	glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+    //camera
+	
+	
+	
+	while (!glfwWindowShouldClose(window)) {
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		float time = glfwGetTime();
+
+		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+			cameraPosition += cameraSpeed * cameraFront;
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+			cameraPosition -= cameraSpeed * cameraFront;
+		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+			cameraPosition -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+			cameraPosition += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+
+		view = glm::lookAt(cameraPosition, cameraPosition + cameraFront, cameraUp);
+		//camera movement
+		
+		// Render doca
+		glm::mat4 docamodel = glm::mat4(1.0f);
+		docamodel = glm::translate(docamodel, glm::vec3(-4.5f, 0.0f, 0.0f));
+		docamodel = glm::rotate(docamodel, time, glm::vec3(0.0f, 1.0f, 0.0f));
+		docamodel = glm::scale(docamodel, glm::vec3(0.5f));
+		glUniformMatrix4fv(glGetUniformLocation(docashaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(docamodel));
+		glUniformMatrix4fv(glGetUniformLocation(docashaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(glGetUniformLocation(docashaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+		glUniform3f(glGetUniformLocation(docashaderProgram, "lightPos"), 1.0f, 1.0f, 2.0f);
+		glUniform3f(glGetUniformLocation(docashaderProgram, "lightColor"), 1.0f, 1.0f, 1.0f);
+		glUniform3f(glGetUniformLocation(docashaderProgram, "objectColor"), 0.5f, 0.5f, 1.0f);
+		glUniform1i(glGetUniformLocation(docashaderProgram, "useWireframe"), wireframeMode ? 1 : 0);
+		glUseProgram(docashaderProgram);
+		glBindVertexArray(docaVAO);
+		glDrawElements(GL_TRIANGLES, 60, GL_UNSIGNED_INT, 0);
+		//render doca
+
+
+
+		// Render octa
+		glm::mat4 octamodel = glm::mat4(1.0f);
+		octamodel = glm::translate(octamodel, glm::vec3(-3.5f, 0.0f, 0.0f));
+		octamodel = glm::rotate(octamodel, time, glm::vec3(0.0f, 1.0f, 0.0f));
+		octamodel = glm::scale(octamodel, glm::vec3(0.5f));
+		glUniformMatrix4fv(glGetUniformLocation(octashaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(octamodel));
+		glUniformMatrix4fv(glGetUniformLocation(octashaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(glGetUniformLocation(octashaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+		glUniform3f(glGetUniformLocation(octashaderProgram, "lightPos"), 1.0f, 1.0f, 2.0f);
+		glUniform3f(glGetUniformLocation(octashaderProgram, "lightColor"), 1.0f, 1.0f, 1.0f);
+		glUniform3f(glGetUniformLocation(octashaderProgram, "objectColor"), 0.5f, 0.5f, 1.0f);
+		glUniform1i(glGetUniformLocation(octashaderProgram, "useWireframe"), wireframeMode ? 1 : 0);
+		glUseProgram(octashaderProgram);
+		glBindVertexArray(octaVAO);
+		glDrawElements(GL_TRIANGLES, 60, GL_UNSIGNED_INT, 0);
+		//render octa
+		
+		
+		
+		// Render the tetra
+		glm::mat4 tetramodel = glm::mat4(1.0f);
+		tetramodel = glm::translate(tetramodel, glm::vec3(-2.5f, 0.0f, 0.0f));
+		tetramodel = glm::rotate(tetramodel, time, glm::vec3(0.0f, 1.0f, 0.0f));
+		tetramodel = glm::scale(tetramodel, glm::vec3(0.5f));
+		glUniformMatrix4fv(glGetUniformLocation(tetrashaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(tetramodel));
+		glUniformMatrix4fv(glGetUniformLocation(tetrashaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(glGetUniformLocation(tetrashaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+		glUniform3f(glGetUniformLocation(tetrashaderProgram, "lightPos"), 1.0f, 1.0f, 2.0f);
+		glUniform3f(glGetUniformLocation(tetrashaderProgram, "lightColor"), 1.0f, 1.0f, 1.0f);
+		glUniform3f(glGetUniformLocation(tetrashaderProgram, "objectColor"), 0.5f, 0.5f, 1.0f);
+		glUniform1i(glGetUniformLocation(tetrashaderProgram, "useWireframe"), wireframeMode ? 1 : 0);
+		glUseProgram(tetrashaderProgram);
+		glBindVertexArray(tetraVAO);
+		glDrawElements(GL_TRIANGLES, 60, GL_UNSIGNED_INT, 0);
+		//rendertetra
+		
+		// Render the Icosahedron
+		glm::mat4 icosamodel = glm::mat4(1.0f);
+		icosamodel = glm::translate(icosamodel, glm::vec3(-0.8f, 0.0f, 0.0f));
+		icosamodel = glm::rotate(icosamodel, time, glm::vec3(0.0f, 1.0f, 0.8f)); //WAS 0.8
+		icosamodel = glm::scale(icosamodel, glm::vec3(0.5f));
+		glUniformMatrix4fv(glGetUniformLocation(icosashaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(icosamodel));
+		glUniformMatrix4fv(glGetUniformLocation(icosashaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(glGetUniformLocation(icosashaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+		glUniform3f(glGetUniformLocation(icosashaderProgram, "lightPos"), 1.0f, 1.0f, 2.0f);
+		glUniform3f(glGetUniformLocation(icosashaderProgram, "lightColor"), 1.0f, 1.0f, 1.0f);
+		glUniform3f(glGetUniformLocation(icosashaderProgram, "objectColor"), 0.5f, 0.5f, 1.0f);
+		glUniform1i(glGetUniformLocation(icosashaderProgram, "useWireframe"), wireframeMode ? 1 : 0);
+		glUseProgram(icosashaderProgram);
+		glBindVertexArray(icosaVAO);
+		glDrawElements(GL_TRIANGLES, 60, GL_UNSIGNED_INT, 0);
+		//render icosa
+
+		// Render the cube
+		glm::mat4 cubemodel = glm::mat4(1.0f);
+		cubemodel = glm::translate(cubemodel, glm::vec3(0.4f, 0.0f, 0.0f));
+		cubemodel = glm::rotate(cubemodel, time, glm::vec3(0.0f, 1.0f, 0.0f));
+		cubemodel = glm::scale(cubemodel, glm::vec3(0.7f));
+		glUniformMatrix4fv(glGetUniformLocation(cubeshaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(cubemodel));
+		glUniformMatrix4fv(glGetUniformLocation(cubeshaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(glGetUniformLocation(cubeshaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+		glUniform3f(glGetUniformLocation(cubeshaderProgram, "lightPos"), 1.0f, 1.0f, 2.0f);
+		glUniform3f(glGetUniformLocation(cubeshaderProgram, "lightColor"), 1.0f, 1.0f, 1.0f);
+		glUniform3f(glGetUniformLocation(cubeshaderProgram, "objectColor"), 0.5f, 0.5f, 1.0f);
+		glUniform1i(glGetUniformLocation(cubeshaderProgram, "useWireframe"), wireframeMode ? 1 : 0);
+		glUseProgram(cubeshaderProgram);
+		glBindVertexArray(cubeVAO);
+		glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+		//render cube
+
+
+		// Render the Sphere
+		glm::mat4 sphereModel = glm::mat4(1.0f);
+		sphereModel = glm::rotate(sphereModel, time, glm::vec3(-1.0f, 0.0f, 0.0f));
+		sphereModel = glm::translate(sphereModel, glm::vec3(1.5f, 0.0f, 0.0f));
+		sphereModel = glm::scale(sphereModel, glm::vec3(0.5f));
+		glUniformMatrix4fv(glGetUniformLocation(sphereShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(sphereModel));
+		glUniformMatrix4fv(glGetUniformLocation(sphereShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(glGetUniformLocation(sphereShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+
+		glUniform3f(glGetUniformLocation(sphereShaderProgram, "lightPos"), 1.0f, 1.0f, 1.0f);
+		glUniform3f(glGetUniformLocation(sphereShaderProgram, "lightColor"), 1.0f, 1.0f, 1.0f);
+		glUniform3f(glGetUniformLocation(sphereShaderProgram, "objectColor"), 1.0f, 2.0f, 0.0f);
+		glUniform1i(glGetUniformLocation(sphereShaderProgram, "useWireframe"), wireframeMode ? 1 : 0);
+
+		glUseProgram(sphereShaderProgram);
+		glBindVertexArray(sphereVAO);
+		glEnableVertexAttribArray(0);
+		glEnableVertexAttribArray(1);
+		glDrawElements(GL_TRIANGLES, sphereIndicesCount, GL_UNSIGNED_INT, 0);
+
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
+	
+	glDeleteVertexArrays(1, &octaVAO);
+	glDeleteBuffers(1, &octaVBO);
+	glDeleteBuffers(1, &octaEBO);
+	
+	glDeleteVertexArrays(1, &docaVAO);
+	glDeleteBuffers(1, &docaVBO);
+	glDeleteBuffers(1, &docaEBO);
+	
+	
+	glDeleteVertexArrays(1, &tetraVAO);
+	glDeleteBuffers(1, &tetraVBO);
+	glDeleteBuffers(1, &tetraEBO);
+
+	glDeleteVertexArrays(1, &icosaVAO);
+	glDeleteBuffers(1, &icosaVBO);
+	glDeleteBuffers(1, &icosaEBO);
+
+
+	glDeleteVertexArrays(1, &cubeVAO);
+	glDeleteBuffers(1, &cubeVBO);
+	glDeleteBuffers(1, &cubeEBO);
+
+	glDeleteVertexArrays(1, &sphereVAO);
+	glDeleteBuffers(1, &sphereVBO);
+	glDeleteBuffers(1, &sphereEBO);
+
+	glfwTerminate();
+
+	return 0;
+} 
